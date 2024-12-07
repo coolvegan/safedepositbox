@@ -48,7 +48,7 @@ func main() {
 	http.HandleFunc("/up", handler)
 	http.HandleFunc("/data", data)
 
-	err := http.ListenAndServe(":8999", nil)
+	err := http.ListenAndServe("127.0.0.1:8999", nil)
 	if err != nil {
 		log.Fatal("ListenAndServe: ", err)
 	}
