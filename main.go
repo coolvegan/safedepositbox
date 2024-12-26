@@ -8,15 +8,19 @@ import (
 	"log"
 	"math/big"
 	"net/http"
+	"time"
 )
 
-type Daten struct {
-	Data string `json:"data"`
-	Iv   string `json:"iv"`
-	Salt string `json:"salt"`
+type SecretStore struct {
+	Data    string    `json:"data" bson:"data"`
+	Iv      string    `json:"iv" bson:"iv"`
+	Salt    string    `json:"salt" bson:"salt"`
+	Created time.Time `bson:"timestamp"`
+	Code    string    `bson:"code"`
 }
 
 var datenmap map[string]string
+var db DatabaseI
 
 func generateRandomString(length int) (string, error) {
 	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
@@ -42,13 +46,18 @@ func randomInt(max int) (int, error) {
 }
 
 func main() {
-	datenmap = make(map[string]string)
+	db = NewMongoDB()
+	result, err := db.GetAll()
+	if err != nil {
+		log.Fatal("Can't Access Database.")
+	}
+	datenmap = result
 	fs := http.FileServer(http.Dir("./"))
 	http.Handle("/", fs)
 	http.HandleFunc("/up", handler)
 	http.HandleFunc("/data", data)
 
-	err := http.ListenAndServe("127.0.0.1:8999", nil)
+	err = http.ListenAndServe("127.0.0.1:8999", nil)
 	if err != nil {
 		log.Fatal("ListenAndServe: ", err)
 	}
@@ -57,29 +66,30 @@ func main() {
 func data(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	fetchkey := r.URL.Query().Get("fetchkey")
-	fmt.Printf("fetchkey: %s\n", fetchkey)
 	fmt.Fprintln(w, datenmap[fetchkey])
 }
 
 func handler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
-	case "GET":
-		fmt.Println("GET")
 	case "POST":
-
-		fmt.Println("POST")
 		body, _ := io.ReadAll((r.Body))
 		defer r.Body.Close()
 
-		var data Daten
+		var data SecretStore
 		err := json.Unmarshal(body, &data)
 		if err != nil {
-			fmt.Println(err)
+			log.Println(err)
 		}
 		randomStr, _ := generateRandomString(4)
 		datenmap[randomStr] = string(body)
 		fmt.Fprintln(w, randomStr)
 		fmt.Println(datenmap)
+		data.Created = time.Now()
+		data.Code = randomStr
+		err = db.Insert(&data)
+		if err != nil {
+			log.Println(err)
+		}
 
 	}
 }

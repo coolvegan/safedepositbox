@@ -1,0 +1,6 @@
+export MGUSER=""
+export MGPASSWORD=""
+export MGHOST="localhost"
+export MGPORT="27017"
+export MGAUTH="admin"
+export MGDATABASE=""
