@@ -32,6 +32,10 @@ async function DecodeAndShow() {
   let password = GetDecodeViewPassword();
   let salt = hexStringToArrayBuffer(atob(dump.salt));
   let key = await GenerateKey(password, new Uint8Array(salt));
+  if (password.length == 0 || salt.length == 0 || key.length == 0) {
+    alert("Keine Daten vorhanden.");
+    return;
+  }
 
   let result = await decryptData(
     hexStringToArrayBuffer(atob(dump.data)),

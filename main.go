@@ -8,6 +8,7 @@ import (
 	"log"
 	"math/big"
 	"net/http"
+	"os"
 	"time"
 )
 
@@ -20,7 +21,6 @@ type SecretStore struct {
 }
 
 var datenmap map[string]string
-var db DatabaseI
 
 func generateRandomString(length int) (string, error) {
 	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
@@ -46,7 +46,10 @@ func randomInt(max int) (int, error) {
 }
 
 func main() {
-	db = NewMongoDB()
+	builder := MongoBuilder{}
+	cfg := Config{Username: os.Getenv("MGUSER"), Password: os.Getenv("MGPASSWORD"), Host: os.Getenv("MGHOST"), Port: os.Getenv("MGPORT"), AuthSource: os.Getenv("MGAUTH"), DatabaseName: os.Getenv("MGDATABASE")}
+	builder.Init(&cfg)
+	db := builder.Build()
 	result, err := db.GetAll()
 	if err != nil {
 		log.Fatal("Can't Access Database.")
@@ -66,7 +69,17 @@ func main() {
 func data(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	fetchkey := r.URL.Query().Get("fetchkey")
-	fmt.Fprintln(w, datenmap[fetchkey])
+	builder := MongoBuilder{}
+	cfg := Config{Username: os.Getenv("MGUSER"), Password: os.Getenv("MGPASSWORD"), Host: os.Getenv("MGHOST"), Port: os.Getenv("MGPORT"), AuthSource: os.Getenv("MGAUTH"), DatabaseName: os.Getenv("MGDATABASE")}
+	builder.Init(&cfg)
+	db := builder.Build()
+
+	result, err := db.GetByKey(fetchkey)
+	if err != nil {
+		log.Println(err)
+		fmt.Fprintln(w, "")
+	}
+	fmt.Fprintln(w, result)
 }
 
 func handler(w http.ResponseWriter, r *http.Request) {
@@ -74,6 +87,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	case "POST":
 		body, _ := io.ReadAll((r.Body))
 		defer r.Body.Close()
+		fmt.Println("error" + string(body))
 
 		var data SecretStore
 		err := json.Unmarshal(body, &data)
@@ -86,6 +100,11 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		fmt.Println(datenmap)
 		data.Created = time.Now()
 		data.Code = randomStr
+
+		builder := MongoBuilder{}
+		cfg := Config{Username: os.Getenv("MGUSER"), Password: os.Getenv("MGPASSWORD"), Host: os.Getenv("MGHOST"), Port: os.Getenv("MGPORT"), AuthSource: os.Getenv("MGAUTH"), DatabaseName: os.Getenv("MGDATABASE")}
+		builder.Init(&cfg)
+		db := builder.Build()
 		err = db.Insert(&data)
 		if err != nil {
 			log.Println(err)
