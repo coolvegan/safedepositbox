@@ -1,3 +1,7 @@
+let intervalid;
+let intervalid2;
+let xsec;
+
 function CheckPasswordFields() {
   const passwordMinLength = 4;
   const password1 = document.getElementById("password1").value;
@@ -17,6 +21,22 @@ function ValidatePassword() {
   return CheckPasswordFields();
 }
 
+async function Delete() {
+  let obj = { "data": "" };
+  const fetchkey = document.getElementById("fetchKey").value;
+  obj.data = fetchkey;
+  const response = await fetch(
+    "/data",
+    {
+      headers: { "Content-Type": "application/json", "X-Sec-Response": xsec },
+      method: "DELETE",
+      body: JSON.stringify(obj),
+    },
+  );
+  let txt = await response.text();
+  showMessage(txt, 3000);
+}
+
 async function DecodeAndShow() {
   const fetchkey = document.getElementById("fetchKey").value;
   const response = await fetch(
@@ -27,13 +47,17 @@ async function DecodeAndShow() {
     },
   );
   const text = await response.text();
+  xsec = await response.headers.get("X-Sec");
+  if (xsec.length > 0) {
+    showMessage("Dekodiere verschlüsselte Nachricht.", 2000);
+  }
   let dump = JSON.parse(text);
 
   let password = GetDecodeViewPassword();
   let salt = hexStringToArrayBuffer(atob(dump.salt));
   let key = await GenerateKey(password, new Uint8Array(salt));
   if (password.length == 0 || salt.length == 0 || key.length == 0) {
-    alert("Keine Daten vorhanden.");
+    showMessage("Keine Daten vorhanden.", 1000);
     return;
   }
 
@@ -43,6 +67,8 @@ async function DecodeAndShow() {
     key,
   );
   document.getElementById("decryptTextarea").value = result;
+  let ev = document.getElementById("dltbtn");
+  ev.style.display = "inline-block";
 }
 
 function base64ToZahlenArray(base64String) {
@@ -58,10 +84,13 @@ function base64ToZahlenArray(base64String) {
 }
 
 async function EncodeAndSend() {
+  showMessage("Sende verschlüsselte Daten an den Server.", 1000);
   if (!ValidatePassword()) {
-    alert(
-      "Passwörter sind nicht gleich. Die Länge muss mindestens 8 Zeichen betragen.",
+    showMessage(
+      "Passwörter sind ungleich. Die Länge muss mindestens 4 Zeichen betragen.",
+      60000,
     );
+    return;
   }
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const key = await GenerateKey(GetUserInputPassword(), salt);
@@ -90,8 +119,8 @@ async function SendToServer(encryptedDataAndIv, salt) {
   //Todo: Trennung von View und Logik
   let ev = document.getElementById("encryptView");
   ev.style.display = "none";
-  document.getElementById("responseKey").innerHTML = "Dein Abholcode: " + text;
-  console.log(text);
+  //  document.getElementById("responseKey").innerHTML = "Dein Abholcode: " + text;
+  showMessage("Dein Abholcode: " + text, 20000);
 }
 
 async function GenerateKey(secret, salt) {
@@ -185,7 +214,29 @@ async function decryptData(encryptedData, iv, encryptionKey) {
 
     return new TextDecoder().decode(decryptedData); // Umwandeln zurück in Text
   } catch (error) {
-    alert("Das Passwort ist fehlerhaft.");
+    showMessage("Das Passwort ist fehlerhaft.", 2000);
   }
   return "";
+}
+
+function showMessage(str, time) {
+  if (intervalid) {
+    clearInterval(intervalid);
+    clearInterval(intervalid2);
+  }
+  let ev = document.getElementById("error");
+  ev.classList.remove("fade-in");
+  ev.classList.remove("fade-out");
+  ev.innerHTML = str;
+  ev.classList.add("fade-in");
+  ev.style.display = "block";
+  intervalid = setInterval(() => {
+    ev.classList.add("fade-out");
+    if (intervalid2) {
+      clearInterval(intervalid2);
+    }
+    intervalid2 = setInterval(() => {
+      ev.style.display = "none";
+    }, 1500);
+  }, time);
 }

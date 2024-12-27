@@ -20,6 +20,8 @@ type SecretStore struct {
 	Code    string    `bson:"code"`
 }
 
+var security map[string]time.Time
+
 var datenmap map[string]string
 
 func generateRandomString(length int) (string, error) {
@@ -46,6 +48,7 @@ func randomInt(max int) (int, error) {
 }
 
 func main() {
+	security = make(map[string]time.Time)
 	builder := MongoBuilder{}
 	cfg := Config{Username: os.Getenv("MGUSER"), Password: os.Getenv("MGPASSWORD"), Host: os.Getenv("MGHOST"), Port: os.Getenv("MGPORT"), AuthSource: os.Getenv("MGAUTH"), DatabaseName: os.Getenv("MGDATABASE")}
 	builder.Init(&cfg)
@@ -67,27 +70,67 @@ func main() {
 }
 
 func data(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	fetchkey := r.URL.Query().Get("fetchkey")
+
+	switch r.Method {
+	case "DELETE":
+		builder := MongoBuilder{}
+		sec := r.Header.Get("X-Sec-Response")
+		newtime := time.Now().Add(time.Minute * -2)
+		storeTimepoint, ok := security[sec]
+		if !ok || newtime.Unix() > storeTimepoint.Unix() {
+			fmt.Fprintf(w, "Secret bereits gelöscht.")
+			return
+		}
+		delete(security, sec)
+		cfg := Config{Username: os.Getenv("MGUSER"), Password: os.Getenv("MGPASSWORD"), Host: os.Getenv("MGHOST"), Port: os.Getenv("MGPORT"), AuthSource: os.Getenv("MGAUTH"), DatabaseName: os.Getenv("MGDATABASE")}
+		builder.Init(&cfg)
+		db := builder.Build()
+		fetchkey, _ := io.ReadAll((r.Body))
+		var data map[string]string
+		err := json.Unmarshal(fetchkey, &data)
+		if err != nil {
+			log.Println(err)
+			return
+		}
+		deleteKey := data["data"]
+		defer r.Body.Close()
+		err = db.DeleteByKey(deleteKey)
+		if err != nil {
+			log.Println(err)
+			fmt.Fprintf(w, "Error")
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintf(w, "Secret gelöscht")
+	case "GET":
+		fetchkey := r.URL.Query().Get("fetchkey")
+		w.Header().Set("Content-Type", "application/json")
+		builder := MongoBuilder{}
+		cfg := Config{Username: os.Getenv("MGUSER"), Password: os.Getenv("MGPASSWORD"), Host: os.Getenv("MGHOST"), Port: os.Getenv("MGPORT"), AuthSource: os.Getenv("MGAUTH"), DatabaseName: os.Getenv("MGDATABASE")}
+		builder.Init(&cfg)
+		db := builder.Build()
+
+		result, err := db.GetByKey(fetchkey)
+		if err != nil {
+			log.Println(err)
+			fmt.Fprintln(w, "")
+		}
+		randmstr, _ := generateRandomString(20)
+		w.Header().Add("x-sec", randmstr)
+		security[randmstr] = time.Now()
+		fmt.Fprintln(w, result)
+	}
+}
+
+func handler(w http.ResponseWriter, r *http.Request) {
 	builder := MongoBuilder{}
 	cfg := Config{Username: os.Getenv("MGUSER"), Password: os.Getenv("MGPASSWORD"), Host: os.Getenv("MGHOST"), Port: os.Getenv("MGPORT"), AuthSource: os.Getenv("MGAUTH"), DatabaseName: os.Getenv("MGDATABASE")}
 	builder.Init(&cfg)
 	db := builder.Build()
-
-	result, err := db.GetByKey(fetchkey)
-	if err != nil {
-		log.Println(err)
-		fmt.Fprintln(w, "")
-	}
-	fmt.Fprintln(w, result)
-}
-
-func handler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "POST":
 		body, _ := io.ReadAll((r.Body))
 		defer r.Body.Close()
-		fmt.Println("error" + string(body))
 
 		var data SecretStore
 		err := json.Unmarshal(body, &data)
@@ -97,14 +140,9 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		randomStr, _ := generateRandomString(4)
 		datenmap[randomStr] = string(body)
 		fmt.Fprintln(w, randomStr)
-		fmt.Println(datenmap)
 		data.Created = time.Now()
 		data.Code = randomStr
 
-		builder := MongoBuilder{}
-		cfg := Config{Username: os.Getenv("MGUSER"), Password: os.Getenv("MGPASSWORD"), Host: os.Getenv("MGHOST"), Port: os.Getenv("MGPORT"), AuthSource: os.Getenv("MGAUTH"), DatabaseName: os.Getenv("MGDATABASE")}
-		builder.Init(&cfg)
-		db := builder.Build()
 		err = db.Insert(&data)
 		if err != nil {
 			log.Println(err)

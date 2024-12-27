@@ -95,8 +95,8 @@ type MongoDB struct {
 
 func (m *MongoDB) Insert(data *SecretStore) error {
 	collection := m.database.Collection(COLLECTION)
-	_, err := collection.InsertOne(context.TODO(), data)
-	if err != nil {
+	r, err := collection.InsertOne(context.TODO(), data)
+	if r.InsertedID == 0 || err != nil {
 		return err
 	}
 	return nil
@@ -149,9 +149,8 @@ func (m *MongoDB) DeleteByKey(key string) error {
 	collection := m.database.Collection(COLLECTION)
 	filter := bson.M{FILTERCOLUMNAME: key}
 	p, err := collection.DeleteOne(context.TODO(), filter)
-	fmt.Println(p.DeletedCount)
-	if err != nil {
-		return err
+	if p.DeletedCount == 0 || err != nil {
+		return fmt.Errorf("Datensatz konnte nicht gelöscht werden.")
 	}
 	return nil
 }

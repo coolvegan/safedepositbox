@@ -12,11 +12,62 @@
       crossorigin="anonymous"
     />
     <style>
+      body {
+        width: 100vw;
+        margin: 10px;
+      }
+
+      @media (min-width: 1080px) {
+        body {
+          margin: 30px;
+          width: 50%; /* Breite auf 50 % setzen, wenn die Bildschirmbreite mindestens 768px beträgt */
+        }
+      }
+
       #encryptView {
         display: none;
+        animation: fadeIn 1s ease-in-out forwards;
       }
       #decryptView {
         display: none;
+        animation: fadeIn 1s ease-in-out forwards;
+      }
+      #error {
+        margin-top: 10px;
+        display: none;
+        color: black;
+        height: 150px;
+        font-size: 17px;
+        font-style: italic;
+        border-radius: 5px;
+        padding: 25px 25px 25px 25px;
+        border: 1px solid;
+      }
+      #dltbtn {
+        display: none;
+      }
+      .fade-in {
+        animation: fadeIn 1s ease-in-out forwards;
+      }
+
+      .fade-out {
+        animation: fadeOut 1s ease-in-out forwards;
+      }
+      @keyframes fadeIn {
+        0% {
+          opacity: 0;
+        }
+        100% {
+          opacity: 1;
+        }
+      }
+      @keyframes fadeOut {
+        100% {
+          opacity: 0;
+        }
+        0% {
+          opacity: 1;
+        }
       }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/argon2-browser/1.18.0/argon2-bundled.min.js"></script>
@@ -41,6 +92,7 @@
           Entschlüsseln
         </button>
       </div>
+      <div id="error"></div>
     </div>
     <div class="form-group" id="responseView">
       <h1 id="responseKey"></h1>
@@ -102,6 +154,9 @@
       <div class="form-group">
         <button class="btn btn-primary" onclick="DecodeAndShow()">
           Abholen und Entschlüsseln
+        </button>
+        <button id="dltbtn" class="btn btn-primary" onclick="Delete()">
+          Löschen
         </button>
       </div>
     </div>
